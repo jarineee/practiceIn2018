@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
+	<title>老用户专区-下单信息填写</title>
+	<link rel="stylesheet" href="./style.css">
+	<script src="https://cdn.bootcss.com/jquery/3.3.1/jquery.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+</head>
+<body>
+	<div id="app-order">
+		<div class="container-order">
+			<div class="steps">
+				<ul>
+					<li :class="currentStep === index ? 'active' : ''" v-for="(stepName, index) in steps"><i class="num">{{ index + 1 }}</i>{{ stepName }}</li>
+				</ul>
+			</div>
+			<div class="chose-number" v-if="steps.length != 2 && steps[currentStep] === '选择号码'">
+				<h3 class="step-title">号码选择</h3>
+				<div class="chosen step-content">
+					<dl class="step-content-1">
+						<dt class="text-center">主卡</dt>
+						<dd :class="chosenNum !== '请选择主卡号码' ? 'selected' : ''">{{ chosenNum }}</dd>
+					</dl>
+				</div>
+				<div class="step-content number-list">
+					<div class="number-list-frame">
+						<div class="number-list-wrapper">
+							<ul class="number-list-page" v-for="page in numberListPages">
+								<li v-for="numberInfo in page" @click="chosenNum = numberInfo.number" :class="chosenNum == numberInfo.number ? 'active' : ''">
+									<span class="number">{{ numberInfo.number }}</span><br>
+									<span class="prestored">预存{{ numberInfo.prestored }}元</span><br>
+									<span class="min-charge">低消{{ numberInfo.minCharge }}元</span>
+								</li>
+							</ul>
+						</div>
+					</div>
+				</div>
+				<h3 class="step-title text-center">· 滑动查看更多 ·</h3>
+				<p class="chose-number-tips">注：请在选号后半小时内提交订单，不然心仪的号码会被抢走哦~</p>
+				<div class="btn-bar" @click="submitNumber">提交号码</div>
+			</div>
+			<div class="basic-info" v-if="steps[currentStep] === '填写资料' || steps[currentStep] === '完成订单'">
+				<h3 class="step-title">填写资料</h3>
+				<div class="step-content">
+					<div class="step-input step-content-1">
+						<ul>
+							<li v-for="item in [
+								{label: '用户姓名', id: 'userName', placeholder:'请输入用户姓名', len: ''},
+								{label: '手机号码', id: 'phoneNum', placeholder: '请输入手机号码', len: 11},
+								{label: '证件号码', id: 'idNum', placeholder: '请输入身份证号码', len: 18},
+								{label: '配送地址', id: 'userAd', placeholder: '请输入手机卡配送地址', len: ''}
+							]">
+								<label :for="item.id">{{ item.label }}</label><input type="text" :id="item.id" v-model="userInfo[item.id]" :placeholder="item.placeholder" :maxlength="item.len">
+							</li>
+						</ul>
+						<p class="tips">
+							温馨提示：请确保收货地址、联系方式等信息填写无误，以免造成商品无法完成投递或被退回
+						</p>
+					</div>
+					<h3 class="step-title">正在办理</h3>
+					<div class="step-course-info step-content-2" v-if="ordering">
+						<table>
+							<tbody>
+								<tr>
+									<td rowspan="2" class="text-center tag-wrapper"><span class="commodity-tag"  v-html="commodityData[ordering].name"></span></td>
+									<td>{{ commodityData[ordering].content }}</td>
+								</tr>
+								<tr>
+									<td v-html="commodityData[ordering].free" class="free"></td>
+								</tr>
+								<tr>
+									<td colspan="2" class="text-right charge-fee">费用：￥{{ commodityData[ordering].chargeFee }}/月</td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
+					<div class="btn-bar" @click="submitOrder" v-if="! submitSuccess">
+						<span>提交资料</span>
+					</div>
+				</div>
+			</div>
+			<div class="dialogue-success text-center" v-if="submitSuccess">
+				<div class="container-dialogue dialogue-body">
+					<i class="success"></i>
+					<h3>订单完成</h3>
+					<p class="order-code">订单编号：{{ orderCode }}</p>
+					<p>我们将于2个工作日内派专人与您联系，请留意您的手机来电，谢谢！</p>
+					<div class="btn-bar" @click="orderComplete">确定</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</body>
+<script>
+	var Order = new Vue({
+		el: '#app-order',
+		data: {
+			qryStrObj: function () {  // 获取地址栏参数
+				var qryStrArr = location.search.substr(1).split('&'),
+					qryStrObj = {};
+					qryStrObj.ordersource = '';
+					qryStrObj.acc = '';
+				$.each(qryStrArr, function (i, e) {
+					var kv = e.split('=');
+					qryStrObj[kv[0]] = kv[1] ? kv[1] : '';
+				});
+				return qryStrObj;
+			}(),
+			ordering: '',
+			commodityData: {
+				zero: {
+					chargeFee: 100,
+					name: '0元<br>不限量卡',
+					content: '100M宽带+全国不限流量+700分钟通话',
+					free: ''
+				},
+				nn : {
+					chargeFee: 99,
+					name: '99/月',
+					content: '100M宽带+全国不限流量+700分钟通话',
+					free: '送：<span>1.赠送广东天翼高清；2.每月赠送30元翼支付红包（次月起24个月内）</span>'
+				},
+				ofn : {
+					chargeFee: 149,
+					name: '149/月',
+					content: '100M宽带+全国不限流量+800分钟通话',
+					free: '送：<span>1.赠送广东天翼高清；2.每月赠送30元翼支付红包（次月起24个月内）</span>'
+				},
+				onn : {
+					chargeFee: 199,
+					name: '199/月',
+					content: '200M宽带+全国不限流量+1200分钟通话',
+					free: '送：<span>1.赠送广东天翼高清；2.每月赠送30元翼支付红包（次月起24个月内）</span>'
+				}
+			},
+			steps: ['填写资料', '完成订单'],
+			currentStep: 0,
+			chosenNum: '请选择主卡号码',
+			userInfo: {
+				userName: '',
+				phoneNum: '',
+				idNum: '',
+				userAd: ''
+			},
+			numberListPages: [],
+			submitSuccess: false,
+			page: 1,
+			orderCode: 76900000000000000
+		},
+		computed: {
+			typeName: function () {
+				switch (this.ordering) {
+					case 'zero':
+						return 0;
+					case 'nn':
+						return 99;
+					case 'ofn':
+						return 149;
+					case 'onn':
+						return 199;
+				}
+			}
+		},
+		created: function () {
+			if (! this.qryStrObj.acc || ! this.qryStrObj.c) location.href = "./index.html?ordersource=" + this.qryStrObj.ordersource + '&acc=' + this.qryStrObj.acc; // 账号 或 套餐 参数为空，引导到首页
+
+			$.ajax({ 	// 校验 套餐 及 账号 是否匹配
+				url: 'http://v5.189shop.cn/Dg_WeChatOldUserInfo/GetWeChatOldUser',
+				type: 'get',
+				dataType: 'jsonp',
+				data: {
+					account: this.qryStrObj.acc
+				},
+				success: function (res) {
+					if (res.ErrorCode === 2) {
+						var data = res.Data;
+						var orderedCourse;
+						if (Order.qryStrObj.c === 'zero') {
+							orderedCourse = 0;
+							Order.commodityName = '0元<br>不限量卡'
+						} else {
+							switch (Order.qryStrObj.c) {
+								case 'onn':
+									orderedCourse = 199;
+									break;
+								case 'ofn':
+									orderedCourse = 149;
+									break;
+								case 'nn':
+									orderedCourse = 99;
+									break;
+							}
+							var course = parseInt(data.RecommendOne.match(/\d{2,3}/)[0]);
+							// 下单的首推套餐与目标清单套餐不符，退到详情页。
+							if (course !== orderedCourse) location.href = './productDetail.html?acc=' + Order.qryStrObj.acc + '&ordersource=' + Order.qryStrObj.ordersource;
+							Order.steps.unshift('选择号码');
+							Order.commodityName = data.RecommendOne + '元/月';
+							Order.$nextTick(function () {
+								Order.GetNumberList();
+								Order.handleSlide();
+							})
+						}
+						Order.ordering = Order.qryStrObj.c;
+					} else if (res.ErrorCode === 4) {  // 账号已提交订单，跳转到详情页
+						var data = res.Data;
+						location.href = './productDetail.html?acc=' + Order.qryStrObj.acc + '&ordersource=' + Order.qryStrObj.ordersource;
+					} else if (res.ErrorMsg === 1) {
+						location.href="./index.html?error=true";
+					}
+				}
+			});
+		},
+		methods: {
+			submitOrder: function () {
+				if (this.verifyUserInfo()) {
+					$.ajax({
+						url: 'http://v5.189shop.cn/Dg_WeChatOldUserInfo/SubmitOrder',
+						data: {
+							'account': this.qryStrObj.account,
+							'typeName': this.typeName,
+							'1phone': this.chosenNum,
+							'idCard': this.userInfo.idNum,
+							'username': this.userInfo.userName,
+							'phone': this.userInfo.phoneNum,
+							'adds': this.userInfo.userAd,
+							'source': this.ordersource
+						},
+						dataType: 'jsonp',
+						success: function (res) {
+							if (res.ErrorCode === 0) {
+								this.submitSuccess = false;
+							} else {
+								alert(res.ErrorMsg);
+							}
+						}
+					})
+				} 
+			},
+			submitNumber: function () {
+				if (this.chosenNum === '请选择主卡号码') {
+					alert('请先选择主卡号码！');
+					return false;
+				}
+				$.ajax({
+					url: 'http://v5.189shop.cn/Dg_WeChatOldUserInfo/SetNumber',
+					data: {
+						phone: this.chosenNum
+					},
+					dataType: 'jsonp',
+					success: function (res) {
+						if (res.ErrorCode === 0) {
+							Order.currentStep ++;
+						} else {
+							alert(res.ErrorMsg);
+						}
+					}
+				})
+			},
+			GetNumberList: function () {
+				$.ajax({
+					url: 'http://v5.189shop.cn/Dg_WeChatOldUserInfo/GetNumberList',
+					data: {
+						page: this.page + 1,
+						row: 9 
+					},
+					type: 'get',
+					dataType: 'jsonp',
+					success: function (res) {
+						if (res.ErrorCode === 0) {
+							var arr = [];
+							$.each(res.Data, function (i, e) {
+								var obj = {};
+								obj.number = e;
+								obj.prestored = 0;
+								obj.minCharge = 0;
+								arr.push(obj);
+							})
+							Order.numberListPages.push(arr);
+							Order.$nextTick(function () {
+								var frameH = $('.number-list-page').height();
+								$('.number-list-frame').height(frameH);
+							})
+						} else {
+							alert(res.ErrorMsg);
+						}
+					}
+				})
+			},
+			handleSlide: function () {
+				var touchStartY;
+				$('.number-list-frame').on('touchstart', function (e) {
+					touchStartY = parseInt(e.originalEvent.changedTouches[0].pageY);
+				});
+				$('.number-list-frame').on('mousedown', function (e) {
+					touchStartY = parseInt(e.pageY);
+				});
+				$('.number-list-frame').on('touchend', function (e) {
+					Order.turnPage(e, touchStartY);
+				});
+				$('.number-list-frame').on('mouseup', function (e) {
+					Order.turnPage(e, touchStartY);
+				});
+			},
+			turnPage: function (e, touchStartY) {
+				var frameH = $('.number-list-page').height();
+				var touchEndY = parseInt(e.pageY || e.originalEvent.changedTouches[0].pageY);
+				if (touchEndY - touchStartY >= 30) { // 下滑
+					if (this.page === 1) {
+						alert('您已到达第一页！')
+					} else {
+						this.page --;
+					}
+				} else if (touchEndY - touchStartY < -30) {  // 上滑
+					if (this.page === Order.numberListPages.length) {
+						Order.GetNumberList();
+						this.page ++;
+					} else {
+						this.page ++;
+					}
+				}
+				$('.number-list-wrapper').animate({
+					top: - (this.page - 1) * frameH + 'px'
+				}, 500)
+			},
+			verifyUserInfo: function () {
+				var userName_reg = /^[\u4e00-\u9fa5（）]{2,}$/,
+					telephoneNumber_reg = /1\d{10}/,
+					userId_reg = /\d{17}[\dxX]{1}/,
+					userAd_reg = /^[\u4e00-\u9fa5（）\d]{5,}/;
+				if (this.userInfo.userName === '') {
+					alert('请输入用户姓名！');
+					return false;
+				} else if (! userName_reg.test(this.userInfo.userName)){
+					alert('请输入长度不小于2的中文字符串');
+					return false;
+				}
+				if (this.userInfo.phoneNum === '') {
+					alert('请输入联系电话！');
+					return false;
+				} else if (! telephoneNumber_reg.test(this.userInfo.phoneNum)) {
+					alert('请输入长度为11位的有效手机号码');
+					return false;
+				}
+				if (this.userInfo.idNum === '') {
+					alert('请输入证件号码！');
+					return false;
+				} else if (! userId_reg.test(this.userInfo.idNum)) {
+					alert('请输入长度为18的有效证件号码');
+					return false;
+				}
+				if (this.userInfo.userAd === '') {
+					alert('请填写配送地址！');
+					return false;
+				} else if (! userAd_reg.test(this.userInfo.userAd)) {
+					alert('请输入长度不小5的配送地址')
+					return false;
+				}
+				return true;
+			},
+			orderComplete: function () {
+				this.submitSuccess = false;
+			}
+		}
+	})
+</script>
+</html>

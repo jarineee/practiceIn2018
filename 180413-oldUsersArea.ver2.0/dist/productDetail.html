@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
+	<title>老用户专区-详情</title>
+	<link rel="stylesheet" href="./style.css">
+	<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+	<script src="https://cdn.bootcss.com/jquery/3.3.1/jquery.min.js"></script>
+</head>
+<body>
+	<div id="app-detail" :class="{'not-read-only': ! orderedBefore}">
+		<div class="product-banner">
+			<div class="container-prod text-center">
+				<img src="./images/detail_banner.png" alt="" width="95%">
+			</div>
+		</div>
+		<div class="product-detail text-center" v-if="recommandCoursePrice">
+			<div class="course-buttons container-prod">
+				<span class="course-btn" :class="{'active': show === recommandCourse}" @click="show = recommandCourse">{{ recommandCoursePrice + '元/月'}}</span>
+				<span class="course-btn" :class="{'active': show === 'zero'}" @click="show = 'zero'"><span>0元不限量卡<br>免费送</span></span>
+			</div>
+			<div class="course-detail">
+				<div class="container-prod">
+					<table>
+						<thead>
+							<tr>
+								<th>宽带速率</th>
+								<th>国内流量</th>
+								<th>国内语音</th>
+								<th>免费送</th>
+							</tr>
+						</thead>
+						<tbody>
+							<tr>
+								<td>{{ courseDetail[show].adslSpd }}M</td>
+								<td>{{ courseDetail[show].nationalFlow }}G</td>
+								<td>{{ courseDetail[show].nationalPhone }}分钟</td>
+								<td>{{ courseDetail[show].freeService }}</td>
+							</tr>
+							<tr>
+								<td class="blank" colspan="4"></td>
+							</tr>
+							<tr>
+								<td colspan="4">
+									<div class="wrapper">
+										<span class="present">赠送：</span>
+										 <p class="present"><span v-for="(present, index) in courseDetail[show].present" style="color: #fe5075">{{ index + 1 }}.{{ present }};</span></p>
+									</div>
+								</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+			</div>
+			<div class="course-tabs">
+				<ul>
+					<li :class="{active: tab === 0}" @click="goTo(0)"><span>套餐卖点</span></li>
+					<li :class="{active: tab === 1}" @click="goTo(1)"><span>资费详情</span></li>
+					<li :class="{active: tab === 2}" @click="goTo(2)"><span>实名流程</span></li>
+				</ul>
+			</div>
+			<div class="ordered-before" v-if="orderedBefore">
+				<div class="container-prod">
+					<p>尊敬的用户，您已成功下单单宽升级不限量套餐，我们将在您下单后的两个工作日内派专人与您联系，请留意您的手机来电，谢谢！</p>
+				</div>
+			</div>
+			<div class="course-introduction">
+				<div class="course-advantage">
+					<div class="container-prod">
+						<h2 title="为什么要选择中国电信不限流量套餐"></h2>
+						<div class="course-ad" v-for="(posterUrl, index) in courseDetail[show].advantagePoster" :style="{backgroundImage: 'url(' + posterUrl + ')'}">
+						</div>
+					</div>
+				</div>
+				<div class="course-data">
+					<div class="container-prod">
+						<table>
+							<thead>
+								<tr>
+									<th>手机套餐（元/月）</th>
+									<th>{{ recommandCoursePrice }}元/月</th>
+									<th>0元不限量卡</th>
+								</tr>
+							</thead>
+							<tbody>
+								<tr>
+									<td>宽带速率</td>
+									<td>{{ courseDetail[recommandCourse].adslSpd}}M</td>
+									<td>100M</td>
+								</tr>
+								<tr>
+									<td>国内通话</td>
+									<td>{{ courseDetail[recommandCourse].nationalPhone}}分钟</td>
+									<td>700分钟</td>
+								</tr>
+								<tr>
+									<td>流量</td>
+									<td>国内不限流量</td>
+									<td>国内不限流量</td>
+								</tr>
+								<tr>
+									<td>副卡</td>
+									<td>含2张副卡</td>
+									<td>可叠加副卡10元/月</td>
+								</tr>
+								<tr>
+									<td>补充优惠</td>
+									<td>赠送广东天翼高清每月赠送30元翼支付红包（次月起24个月内）</td>
+									<td></td>
+								</tr>
+								<tr>
+									<td>说明</td>
+									<td></td>
+									<td>宽带每月最低消费100元</td>
+								</tr>
+								<tr>
+									<td><a href="#">查看详情</a></td>
+									<td colspan="2"></td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
+				</div>
+				<div class="realname-process">
+					<div class="container-prod">
+						<div class="realname-step" v-for=" url in ['./images/sm.jpg','./images/sm1.jpg', './images/sm2.jpg', './images/sm3.jpg', './images/sm4.jpg', './images/tips.jpg']"><img :src="url" alt="" width="100%"></div>
+					</div>
+				</div>
+			</div>
+		</div>
+		<div class="order-product" @click="orderProduct" v-if="! orderedBefore">
+			<span>我要办理</span>
+		</div>
+		<div class="go-to-top">
+			<a class="icon-top" @click="goTo(3)"></a>
+		</div>
+	</div>
+</body>
+<script>
+	var ProductDetail = new Vue({
+		el: '#app-detail',
+		data: {
+			qryStrObj: function () {  // 获取地址栏参数
+				var qryStrArr = location.search.substr(1).split('&'),
+					qryStrObj = {};
+					qryStrObj.ordersource = '';
+				$.each(qryStrArr, function (i, e) {
+					var kv = e.split('=');
+					qryStrObj[kv[0]] = kv[1] ? kv[1] : '';
+				});
+				return qryStrObj;
+			}(),
+			recommandCoursePrice: '',
+			show: '',
+			courseDetail: {  // 各个套餐的资费详情
+				onn: {
+					adslSpd: 200,
+					provinceFlow: '不限',
+					nationalFlow: '不限',
+					nationalPhone: 1200,
+					freeService: '天翼高清',
+					present: ['赠送广东天翼高清', '每月赠送30元翼支付红包（次月起24个月内）'],
+					advantagePoster: [
+						'./images/ad_1_0.png',
+						'./images/ad_2_0.png',
+						'./images/ad_3_199.png',
+						'./images/ad_4_199.png',
+						'./images/ad_5_199.png'
+					]
+				},
+				ofn: {
+					adslSpd: 100,
+					provinceFlow: '不限',
+					nationalFlow: '不限',
+					nationalPhone: 800,
+					freeService: '天翼高清',
+					present: ['赠送广东天翼高清', '每月赠送30元翼支付红包（次月起24个月内）'],
+					advantagePoster: [
+						'./images/ad_1_0.png',
+						'./images/ad_2_0.png',
+						'./images/ad_3_199.png',
+						'./images/ad_4_199.png',
+						'./images/ad_5_149.png'
+					]
+				},
+				nn: {
+					adslSpd: 100,
+					provinceFlow: '不限',
+					nationalFlow: '不限',
+					nationalPhone: 700,
+					freeService: '天翼高清',
+					present: ['赠送广东天翼高清', '每月赠送30元翼支付红包（次月起24个月内）'],
+					advantagePoster: [
+						'./images/ad_1_0.png',
+						'./images/ad_2_0.png',
+						'./images/ad_3_199.png',
+						'./images/ad_4_99.png',
+					]
+				},
+				zero: {
+					adslSpd: 100,
+					provinceFlow: '不限',
+					nationalFlow: '不限',
+					nationalPhone: 700,
+					freeService: '天翼高清',
+					present: ['赠送广东天翼高清', '每月赠送30元翼支付红包（次月起24个月内）'],
+					advantagePoster: [
+						'./images/ad_1_0.png',
+						'./images/ad_2_0.png',
+						'./images/ad_3_0.png'
+					]
+				}
+			},
+			orderedBefore: false,
+			scrolling: false,
+			tab: 0
+		},
+		computed: {
+			recommandCourse: function () {
+				switch (this.recommandCoursePrice) {
+					case 199:
+						this.show = 'onn';
+						return 'onn';
+					case 149:
+						this.show = 'ofn'
+						return 'ofn';
+					case 99:
+						this.show = 'nn';
+						return 'nn';
+				}
+			},
+			offsetTop: function () {
+				if (this.show === 'zero') {
+					return this.offsetTopCalc();
+				} else if (this.show === this.recommandCourse) {
+					return this.offsetTopCalc();
+				}
+			}
+		},
+		created: function () {
+			//如果没有填写账号，引导到首页
+			if (! this.qryStrObj.acc) location.href = "./index.html?ordersource=" + this.qryStrObj.ordersource;
+			// 先发送请求查询数据
+			$.ajax({
+				url: 'http://v5.189shop.cn/Dg_WeChatOldUserInfo/GetWeChatOldUser',
+				type: 'get',
+				dataType: 'jsonp',
+				data: {
+					account: this.qryStrObj.acc
+				},
+				success: function (res) {
+					console.log(res);
+					if (res.ErrorCode === 2) {
+						var data = res.Data;
+						ProductDetail.recommandCoursePrice = parseInt(data.RecommendOne.match(/\d{2,3}/)[0]);
+					} else if (res.ErrorCode === 4) {
+						var data = res.Data;
+						ProductDetail.orderedBefore = true;
+						ProductDetail.recommandCoursePrice = parseInt(data.RecommendOne.match(/\d{2,3}/)[0]);
+					} else if (res.ErrorCode === 1) {  // 账号信息有误
+						location.href="./index.html?error=true";
+					}
+				}
+			});
+			this.$nextTick(function () {
+				$(document).on('scroll', ProductDetail.handleScroll);
+			})
+		},
+		methods: {
+			goTo: function (tab) {
+				var scrollTo = 0;
+				if (tab === 3) {
+					this.tab = 0;
+					this.scrolling = true;
+					$('html,body').animate({
+						scrollTop: scrollTo
+					}, 500, function () {
+						ProductDetail.scrolling = false;
+					});
+					return;
+				}
+				switch (tab) {
+					case 0:
+						scrollTo = this.offsetTop.courseAd;
+						break;
+					case 1:
+						scrollTo = this.offsetTop.courseData;
+						break;
+					case 2:
+						scrollTo = this.offsetTop.realnameProcess;
+						break;
+				}
+				this.tab = tab;
+				this.scrolling = true;
+				$('html,body').animate({
+					scrollTop: scrollTo - 299 + 'px'
+				}, 500, function () {
+					ProductDetail.scrolling = false;
+				});
+
+			},
+			handleScroll: function () {
+				if (! this.offsetTop) return false;
+				var top = $(document).scrollTop(); // 页面卷起高度；
+				if (top >= this.offsetTop.tab) {
+					$('.course-tabs ul').css({
+						position: 'fixed',
+						top: 0,
+						left: 0,
+						width: '100%'
+					});
+					if (ProductDetail.scrolling) return false;
+					if (top >= this.offsetTop.realnameProcess - 300) {
+						this.tab = 2;
+					} else if (top >= this.offsetTop.courseData - 300) {
+						this.tab = 1;
+					} else {
+						this.tab = 0;
+					}
+				} else {
+					$('.course-tabs ul').css({
+						position: 'static'
+					})
+				}
+			},
+			orderProduct: function () {  // 我要办理
+				window.location = './orderInfo.html?ordersource=' + this.qryStrObj.ordersource + '&acc=' + this.qryStrObj.acc + '&c=' + this.show;
+			},
+			offsetTopCalc: function () {
+				var tab = $('.course-tabs ul').offset().top,
+					courseAd = $('.course-advantage').offset().top,
+					courseData = $('.course-data').offset().top,
+					realnameProcess = $('.realname-process').offset().top;
+				return {
+					tab: tab,
+					courseAd: courseAd,
+					courseData: courseData,
+					realnameProcess: realnameProcess
+				};
+			}
+		}
+	})
+</script>
+</html>

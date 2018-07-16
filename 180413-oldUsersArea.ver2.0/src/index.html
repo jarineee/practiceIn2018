@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
+	<title>老用户专区-查询</title>
+	<link rel="stylesheet" href="./style.css">
+	<script src="https://cdn.bootcss.com/jquery/3.3.1/jquery.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+</head>
+<body>
+	<div id="app-index">
+		<div class="top-banner"></div>
+		<template v-if="! showList && ! showError">
+			<div class="query-buttons" >
+				<span v-for="(item, index) in queryButtons" :class="{ 'query-btn': true, 'active': index === chosenType}" @click="chosenType = index" to="/foo">{{ item }}</span>
+			</div>
+			<div class="query-method">
+				<div class="telephone-old-user" v-if="chosenType === 0">
+					<label for="telephoneNumber">请输入您的手机号码：</label><br>
+					<div class="input-wrapper">
+						<input type="text" id="telephoneNumber" v-model="telephoneNumber" placeholder="示例： 18123456789" maxlength="11">
+						<i class="cross-sign" @click="telephoneNumber = ''"></i>
+					</div>
+				</div>
+				<div class="adsl-old-user" v-if="chosenType === 1">
+					<div class="adsl-or-owner">
+						<p @click="adslOrOwner = 'adsl'"><i class="sim-radio" :class="{active: adslOrOwner === 'adsl'}" ></i><span>宽带账号查询</span></p>
+						<p @click="adslOrOwner = 'owner'"><i class="sim-radio" :class="{active: adslOrOwner === 'owner'}" ></i><span>机主姓名+身份证后六位查询</span></p>
+					</div>
+					<div class="">
+						<div class="input-adsl input-wrapper" v-if="adslOrOwner === 'adsl'">
+							<label for="adsl">宽带账号：</label><input type="text" placeholder="示例：13456@163.gd" id="adsl" v-model="adslAccount"><i class="cross-sign" @click="adslAccount = ''"></i>
+						</div>
+						<div class="input-owner" v-if="adslOrOwner === 'owner'">
+							<div class="input-owner-name input-wrapper" style="display:block">
+								<label for="ownerName">机主姓名：</label><input type="text" placeholder="请输入机主姓名" id="ownerName" v-model="ownerName">
+							</div>
+							<div class="input-owner-ID input-wrapper">
+								<label for="ownerID">身份证后六位：</label><input type="text" placeholder="请输入身份证后六位" id="ownerID" v-model="ownerID" maxlength="6">
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+			<div class="query-bar">
+				<span @click="queryUserInfo()">查询</span>
+			</div>
+		</template>
+		<template v-else-if="showError">
+			<div class="error">
+				<i class="icon-error"></i><br>
+				<p>很抱歉，您不是本次优惠活动的目标用户，<br>更多精彩活动敬请期待，谢谢！</p>
+			</div>
+			<back-to-index @toindex="backToIndex"></back-to-index>
+		</template>
+		<template v-else>
+			<adsl-list :list="list" :len="totalNumber" @query="handleQuery" :search="qryStrObj"></adsl-list>
+			<back-to-index @toindex="backToIndex"></back-to-index>
+		</template>
+	</div>
+</body>
+<script>
+	var Index = new Vue({
+		el: '#app-index',
+		data: {
+			qryStrObj: function () {  // 获取地址栏参数
+				var qryStrArr = location.search.substr(1).split('&'),
+					qryStrObj = {};
+					qryStrObj.ordersource = '';
+				$.each(qryStrArr, function (i, e) {
+					var kv = e.split('=');
+					qryStrObj[kv[0]] = kv[1] ? kv[1] : '';
+				});
+				return qryStrObj;
+			}(),
+			chosenType: 0,
+			queryButtons: [
+				'我是移动老用户',
+				'我是宽带老用户'
+			],
+			telephoneNumber: '',
+			adslOrOwner: 'adsl',
+			adslAccount: '',
+			ownerName: '',
+			ownerID: '',
+			list: [],
+			totalNumber: 0,
+			showList: false,
+			showError: false
+		},
+		created: function () {
+			// 若地址栏中的acc参数值匹配手机号格式或adsl账号格式，直接发起查询
+			var telephoneNumber_reg = /(133|153|173|177|180|181|189|199)\d{8}/,
+				adslAccount_reg = /^[\d\w]{5,}@163.gd$/,
+				acc = this.qryStrObj.acc ? this.qryStrObj.acc : "";
+			if (this.qryStrObj.acc !== '' && (adslAccount_reg.test(acc) || telephoneNumber_reg.test(acc))) {
+				this.submitType(1);
+			}
+			if (this.qryStrObj.error) {
+				this.showError = true;
+			}
+		},
+		methods: {
+			verifyInputContent: function () {  // 校验填写内容格式是否正确
+				var telephoneNumber_reg = /(133|153|173|177|180|181|189|199)\d{8}/,
+					adslAccount_reg = /^[\d\w]{5,}@163.gd$/,
+					ownerName_reg = /^[\u4e00-\u9fa5（）]{2,}$/,
+					ownerID_reg = /^[\d]{5}(\d|x|X)/;
+				// 校验手机号码格式
+				if (this.chosenType === 0) {
+					if (this.telephoneNumber === '') {
+						alert('手机号码不能为空！');
+						return false;
+					} else if (!telephoneNumber_reg.test(this.telephoneNumber)) {
+						alert('请填写长度为11位的电信手机号码！');
+						return false;
+					} else {
+						return true;
+					}
+				}
+				// 校验宽带账号格式
+				if (this.chosenType === 1 && this.adslOrOwner === 'adsl') {
+					if (this.adslAccount === '') {
+						alert('宽带账号不能为空！');
+						return false;
+					} else if (! adslAccount_reg.test(this.adslAccount)) {
+						alert('请填写正确的宽带账号！');
+						return false;
+					} else {
+						return true;
+					}
+				}
+				// 校验机主姓名及身份证后六位
+				if (this.chosenType === 1 && this.adslOrOwner === 'owner') {
+					if (this.ownerName === '') {
+						alert('机主姓名不能为空！');
+						$('#ownerName').focus();
+						return false;
+					} else if (! ownerName_reg.test(this.ownerName)) {
+						alert('请填写长度不小于2的中文机主姓名！');
+						$('#ownerName').focus();
+						return false;
+					}
+					if (this.ownerID === '') {
+						alert('身份证后六位不能为空！');
+						$('#ownerID').focus();
+						return false;
+					} else if (! ownerID_reg.test(this.ownerID)) {
+						alert('请填写身份证后六位的正确格式！');
+						$('#ownerID').focus();
+						return false;
+					} else {
+						return true;
+					}
+				}
+			},
+			submitType: function (type) { // 基础查询接口，可跳转到详情页
+				var queryData = {};
+				if (type === 1) {
+					queryData.account = this.qryStrObj.acc || this.adslAccount;
+				} else if (type === 2) {
+					queryData.userName = this.ownerName;
+					queryData.isCrad = this.ownerID;
+				}
+				$.ajax({
+					url: 'http://v5.189shop.cn/Dg_WeChatOldUserInfo/GetWeChatOldUser',
+					type: 'get',
+					dataType: 'jsonp',
+					data: queryData,
+					success: function (res) {
+						// 待接口更新；
+						if (res.ErrorCode === 1) {  // 不在目标清单中
+							alert(res.ErrorMsg);
+						} else if (res.ErrorCode === 2 || res.ErrorCode === 4) { // 已提交或未提交的宽带账号查询
+							location.href = './productDetail.html?acc=' + queryData.account + '&ordersource=' + Index.qryStrObj.ordersource;
+						} else if (res.ErrorCode === 3) { // 身份证+机主姓名查询
+							if (typeof res.Data.account === 'string') {  // 只有一个账号，直接到详情页
+								location.href = './productDetail.html?acc=' + queryData.account + '&ordersource=' + Index.qryStrObj.ordersource;
+							} else if (Object.prototype.toString.call(res.Data.account) === '[object Array]') {  // 有多个账号，显示列表
+								$.each(res.data, function (i, e) {
+									Index.list.push(res.data[i].AdslNo);
+								});
+								Index.showList = true;
+							}
+						}
+					}
+				});
+			},
+			queryUserInfo: function () {  // 目录页查询按钮点击事件
+				var chosenType = this.chosenType,
+					adslOrOwner = this.adslOrOwner;
+				$('.query-bar span').css('background', '#818080');
+				$('.query-bar span').text('查询中');
+				if (!this.verifyInputContent()) {
+					$('.query-bar span').css('background', '#d71937');
+					$('.query-bar span').text('查询');
+					return false;
+				}
+				if (chosenType === 0 || (chosenType === 1 && adslOrOwner === 'adsl')) {
+				// 宽带账号查询
+					this.submitType(1);
+				} else if(chosenType === 1 && adslOrOwner === 'owner') {
+				// 机主姓名+身份证查询
+					this.submitType(2);
+				}
+			},
+			handleQuery: function (payload) {
+				var queryAcc = payload.queryAcc;
+				this.submitType1(queryAcc);
+			},
+			backToIndex: function () {
+				this.showList = false;
+				this.showError = false;
+			}
+		},
+		components: {
+			'adsl-list': {
+				props: ['list', 'len', 'search'],
+				template: '<div class="adsl-list">'
+					+ '<p>您名下存在多个宽带账号，请选择要查询的宽带账号：</p>'
+					+ '<div class="list">'
+						+ '<table>'
+							+ '<tbody>'
+								+ '<tr v-for="adslAcc in list">'
+									+ '<td>{{ adslAcc }}</td>'
+									+ '<td><a @click="selectAnAccount(adslAcc)" class="list-query-btn" :href="\'./index.html?acc=\' + adslAcc + \'&ordersource=\' + search.ordersource" target="_blank">查询</a></td>'
+								+ '</tr>'
+							+ '</tbody>'
+						+ '</table>'
+					+ '</div>'
+				+ '</div>',
+				methods: {
+					selectAnAccount: function (acc) {
+						this.$emit('query', {queryAcc: acc})
+					}
+				}
+			},
+			'back-to-index': {
+				template: '<div class="back-to-index">'
+					+ '<span @click="toIndex">返回首页</span>'
+				+ '</div>',
+				methods: {
+					toIndex: function () {
+						this.$emit('toindex');
+					}
+				}
+			}
+		}
+	});
+
+</script>
+</html>
